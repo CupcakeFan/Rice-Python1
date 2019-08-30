@@ -1,4 +1,24 @@
 # Mini-project #6 - Blackjack
+#
+# One of the dealers cards are considered his hole card
+#  and it is dealt face down.
+#  We regard the second card the dealer gets to be the hole
+#  card.
+# The dealer must draw to 17, so keep drawing while not 17
+#  yet.
+# Disregard "soft" 17, i.e. dealer does not draw if hand
+#  value calculates to 17 when hole card is flipped.
+# Player loses a point when pressing "deal" in-game.
+# Dealer is dealt a card at reduced pace, so we can follow
+#  the action.
+# Score +1 for a win, -1 for a loss. Keep going forever.
+# The game tracks the cards in the deck, if < 17 cards left,
+#  assume a game cannot be completed in worst case scenario 
+#  with the remaining cards, and discard the deck in favour 
+#  of a new one.
+#  We indicate this with the alternate card back displayed.
+# Set DEBUG=True to display the hand value and cards in
+#  the console.
 #============================================================
 
 import simplegui
@@ -17,7 +37,7 @@ CARD_BACK_CENTER = (36, 48)
 card_back = simplegui.load_image("http://storage.googleapis.com/codeskulptor-assets/card_jfitz_back.png")    
 
 # draw things a bit larger
-SCALE = 11 / 10
+SCALE = 12 / 10
 DRAW_SIZE = (CARD_SIZE[0] * SCALE, CARD_SIZE[1] * SCALE)
 DRAW_CENTER = (CARD_CENTER[0] * SCALE, CARD_CENTER[1] * SCALE)
 
@@ -32,7 +52,7 @@ TABLE_HEIGHT = DRAW_SIZE[1] * 6
 DRAW_DEALER = (TABLE_WIDTH / 20, TABLE_HEIGHT * 2 / 12)
 DRAW_OUTCOME = (TABLE_WIDTH / 20, TABLE_HEIGHT * 6 / 12)
 DRAW_SCORE = (TABLE_WIDTH - DRAW_OUTCOME[0], TABLE_HEIGHT / 12)
-DRAW_PLAYER = (TABLE_WIDTH / 20, TABLE_HEIGHT * 8 / 12)
+DRAW_PLAYER = (TABLE_WIDTH / 20, TABLE_HEIGHT * 7 / 12)
 DRAW_MESSAGE = (TABLE_WIDTH / 20, TABLE_HEIGHT * 11 /12)
 
 # Constants for easy game adjustment
@@ -40,7 +60,8 @@ SCORE_SIZE = 24
 OUTCOME_SIZE = 32
 MAX_DELAY_TIMER = 90
 
-DEBUG = True
+# Set DEBUG=True to display console messages
+DEBUG = False
 
 #=====================================================
 # Rules
@@ -242,6 +263,9 @@ class Deck:
     
     # take a card from the deck - we deal from the end of the list, not the from
     def deal_card(self):
+        if DEBUG:
+            print "Deck:", len(self.cards)
+        
         # if our deck runs low, get a fresh deck
         if len(self.cards) < DECK_LOW_LIMIT:
             # new deck
@@ -318,7 +342,7 @@ def hit():
         
         # outcome is a reminder message
         #outcome = "You got " + str(player_hand.get_value())
-        outcome = "Dealer draws to " + str(DEALER_DRAWS_TO) + "..."
+        outcome = "Dealer draws to " + str(DEALER_DRAWS_TO)
         
         # Show hand value
         if DEBUG:
@@ -345,7 +369,7 @@ def stand():
         # set up slower play so we can follow what happens
         dealer_play_time = delay_timer
         # outcome is set to a reminder message
-        outcome = "Dealer draws to " + str(DEALER_DRAWS_TO) + "..."
+        outcome = "Dealer draws to " + str(DEALER_DRAWS_TO)
         # enable dealer to be hit
         dealer_play = True
         player_message = ""
@@ -424,14 +448,17 @@ def draw(canvas):
     # first draw fancy BlackJack: title thingy
     outcome_pos = DRAW_OUTCOME
     canvas.draw_text("Black", outcome_pos, OUTCOME_SIZE, "Black")
-    outcome_offset = frame.get_canvas_textwidth("Black", OUTCOME_SIZE)
+    outcome_offset = frame.get_canvas_textwidth("BlackJack: ", OUTCOME_SIZE)
+    outcome_offset -= frame.get_canvas_textwidth("Jack: ", OUTCOME_SIZE)
     outcome_pos = (DRAW_OUTCOME[0] + outcome_offset, DRAW_OUTCOME[1])
     canvas.draw_text("Jack", outcome_pos, OUTCOME_SIZE, "Red")
-    outcome_offset = frame.get_canvas_textwidth("BlackJack", OUTCOME_SIZE)
+    outcome_offset = frame.get_canvas_textwidth("BlackJack: ", OUTCOME_SIZE)
+    outcome_offset -= frame.get_canvas_textwidth(": ", OUTCOME_SIZE)
     outcome_pos = (DRAW_OUTCOME[0] + outcome_offset, DRAW_OUTCOME[1])
     canvas.draw_text(": ", outcome_pos, OUTCOME_SIZE, "Black")
     # Now display message behind fancy BlackJack thingy
-    outcome_offset = frame.get_canvas_textwidth("BlackJack: ", OUTCOME_SIZE)
+    outcome_offset = frame.get_canvas_textwidth("BlackJack: msg", OUTCOME_SIZE)
+    outcome_offset -= frame.get_canvas_textwidth("msg", OUTCOME_SIZE)
     outcome_pos = (DRAW_OUTCOME[0] + outcome_offset, DRAW_OUTCOME[1])
     canvas.draw_text(outcome, outcome_pos, OUTCOME_SIZE, "Black")
     
