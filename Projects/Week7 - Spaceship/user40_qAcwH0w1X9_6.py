@@ -8,9 +8,6 @@ import random
 # globals for user interface
 WIDTH = 800
 HEIGHT = 600
-score = 0
-lives = 3
-time = 0
 FRAMES_PER_SEC = 60
 ANGLE_STEPS = math.pi
 ACCEL_STEPS = 7
@@ -32,6 +29,10 @@ my_ship_rotates = 0
 my_ship_accelerates = 0
 
 max_rock_speed = DEFAULT_ROCK_SPEED
+
+score = 0
+lives = 3
+time = 0
 
 #================================================
 # image data
@@ -344,6 +345,13 @@ def draw(canvas):
     my_ship.update(my_ship_rotates, my_ship_accelerates)
     a_rock.update()
     a_missile.update()
+    
+    # draw user interface
+    score_string = "Score: " + str(score)
+    canvas.draw_text(score_string, ( 24, 24), 24, "Yellow")
+    lives_string = "Lives: " + str(lives)
+    lives_x = WIDTH - 24 - frame.get_canvas_textwidth(lives_string, 24)
+    canvas.draw_text(lives_string, ( lives_x, 24), 24, "Yellow")
 
 #==========================================================
 # initialize frame
