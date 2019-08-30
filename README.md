@@ -1,5 +1,5 @@
-# Rice-Python1
 Python (Arcade) Games course module 1
+
 Rice University MOOC
 
 Learning Python Programming by developing games using the online tools provided by Rice University.
