@@ -9,6 +9,9 @@ import random
 WIDTH = 800
 HEIGHT = 600
 FRAMES_PER_SEC = 60
+INFO_UPDATE = FRAMES_PER_SEC / 8
+INFO_POS = [WIDTH / 8, 5 * HEIGHT / 6]
+INFO_LENGTH = 45
 
 # reaction constants (taken from example / template)
 ANGLE_STEPS = math.pi * 1.5
@@ -22,8 +25,12 @@ VELOCITY_RANGE = FRAMES_PER_SEC
 
 MAX_ROCK_SPEED = 7
 MAX_ROCKS_ALLOWED = 12
+MAX_NOF_LIVES = 5
 
 DFT_MISSILE_SPEED = 1.0 * MAX_ROCK_SPEED
+DEFAULT_NOF_LIVES = 3
+
+INSTRUCTIONS = "CONTROLS:              <Left Arrow> turns left                          <Right Arrow> turns right                        <Up Arrow> accelerates forward                   <Space> fires a missile                          High Score: "
 
 #================================================
 # game states
@@ -31,9 +38,15 @@ current_rock_speed = 1
 missile_speed = DFT_MISSILE_SPEED
 
 score = 0
+high_score = 0
 lives = 3
 time = 0
 started = False
+level = 0
+level_up_score = MAX_ROCKS_ALLOWED
+
+ticker = 0
+display_pos = 0
 
 #================================================
 # image data
@@ -151,7 +164,7 @@ class Ship:
         return self.radius
     
     def rotates(self, angle_vel):
-        self.angle_vel = angle_vel
+        self.angle_vel += angle_vel
         
     def accelerates(self, acceleration):
         if acceleration > 0:
@@ -267,94 +280,189 @@ class Sprite:
         return self.age >= self.lifespan
         
 #=============================================================
+# helper: display info
+def show_instructions(canvas):
+    global ticker, display_pos
+    
+    string1 = INSTRUCTIONS + str(high_score)
+    source_string = string1.rjust(INFO_LENGTH + len(string1), ' ')
+    ticker += 1
+    if ticker > INFO_UPDATE:
+        ticker = 0
+        display_pos += 1
+        display_pos %= len(source_string)
+    display_string = ""
+    display_offset = display_pos
+    for i in range(INFO_LENGTH):
+        display_string += source_string[display_offset]
+        display_offset += 1
+        display_offset %= len(source_string)
+    canvas.draw_text(display_string, INFO_POS, 24, "Yellow", "monospace")
+            
+# helper: create a list of levels
+def add_level():
+    global level, level_group
+    rock_size = asteroid_info_tiny.get_radius() * 2
+    level += 1
+    offset = (level * rock_size) + (rock_size / 2)
+    level_rock = Sprite([offset, HEIGHT - 1.5 * rock_size], 
+                        [0,0], 
+                        0, 
+                        math.pi / 120, 
+                        asteroid_image, 
+                        asteroid_info_tiny
+                       )
+    level_group.append(level_rock)
+
+#---------------------------------------------------------
 # helper: create a list of lives
 def add_live():
     global lives, lives_group
-    if 5 > lives:
+    if MAX_NOF_LIVES > lives:
         offset = 100 + lives * ship_info_tiny.get_radius() * 2
         live_ship = Ship([offset, 18], [0,0], 3 * math.pi / 2, ship_image, ship_info_tiny)
         lives_group.append(live_ship)
         lives += 1
 
+#---------------------------------------------------------
 # helper: start new game - reset all game states
 def start_new_game():
     global started
+    global level, level_group
     global score, upgrade_score
     global lives, lives_group
     global my_ship, missile_speed
-    global rocks_rolling
+    global rocks_been_around
     
-    started = True
+    # start slow
+    level = 0
+    level_group = []
+    add_level()
+    
+    # clear score
     score = 0
-    upgrade_score = 2 * MAX_ROCKS_ALLOWED
-    rocks_rolling = False
-    lives = 0
-    lives_group = []
+    
+    # next point it gets harder
+    upgrade_score = MAX_ROCKS_ALLOWED
+    
+    # can we do somethong special yet ?
+    rocks_been_around = False
+    
+    # start the background music up
     soundtrack.rewind()
     soundtrack.play()
+    
+    # reset the player ship to the center of the screen
     my_ship = Ship([WIDTH / 2, HEIGHT / 2], [0, 0], 0, ship_image, ship_info)
     missile_speed = DFT_MISSILE_SPEED
-    for i in range(3):
-        add_live()
     
+    # set number of lives and draw the number of lives
+    lives = 0
+    lives_group = []
+    for i in range(DEFAULT_NOF_LIVES):
+        add_live()
+        
+    # game on
+    started = True
+    
+#---------------------------------------------------------
 # helper: handle sprite group (draw and update)
 def process_sprite_group(canvas, sprite_group):
+    # copy the group so we can iterate over the non-mutating copy
     copy_group = set(sprite_group)
+    # iterate over the non-mutating copy
     for sprite in copy_group:
+        # draw the sprite
         sprite.draw(canvas)
+        # do an update, and be ready to remove it from the set
         if sprite.update():
+            # sprite aged beyond lifetime, remove from original set
             sprite_group.remove(sprite)
 
+#---------------------------------------------------------
 # helper: create an explosion sprite with the properties of the passed sprite
 def new_explosion(sprite_info):
     global explosion_group
     
+    # where must explosion start
     pos = sprite_info.get_pos()
+    # in which direction must explosion travel
     vel = sprite_info.get_vel()
+    # create an explosion sprite
     expl = Sprite(pos, vel, 0, 0, explosion_image, explosion_info, explosion_sound)
+    # add this explosion to a set of explosion to do
     explosion_group.add(expl)
     
+#---------------------------------------------------------
 # helper: detect collision between a group and an object
 def group_collide(sprite_group, an_object):
+    # make a copy we can iterate over
     copy_group = set(sprite_group)
+    # initially we had no collisions
     collided = False
+    # check each sprite in the group
     for sprite in copy_group:
+        # collision with the object ?
         if sprite.collide(an_object):
+            # collisions = explosions
             new_explosion(sprite)
+            # and remove the sprite object from the original set
             sprite_group.remove(sprite)
+            # and we had at least one collision from the set
             collided = True
+    # report to the caller if any of the set collided with the object
     return collided
 
+#---------------------------------------------------------
+# helper: check if any of group1 collided with any of group2
 def group_group_collide(sprite_group1, sprite_group2):
+    # make a copy of group1 so we can iterate over the non-mutating copy
     copy_group1 = set(sprite_group1)
+    # the number of collisions is none yet
     number_of_collides = 0
+    # iterate over each item in set 1
     for sprite in copy_group1:
+        # Check if set 2 collided with this item/object
         if group_collide(sprite_group2, sprite):
+            # oh it did ! one more collision to the total
             number_of_collides += 1
+            # remove this item/object from the original set 1
             sprite_group1.remove(sprite)
+    # report the number of collisions to the caller
     return number_of_collides
 
+#---------------------------------------------------------
 # helper: calculate rock_x
 def put_rock_on_horizontal_edge(dir_vect):
+    # find rock size
     rock_radius = asteroid_info.get_radius()
-    
-    # where is ship
-    pos1 = my_ship.get_pos()
-    
-    # if moving to right (or not)
+    # determine the unfairness of the spawn
+    if 4 > level:
+        limit = 5 - level
+    else:
+        limit = 2
+    # where is ship at
+    pos = my_ship.get_pos()
+    # if rock is not moving left
     if dir_vect[0] >= 0:
-        # get position in left section of screen
+        # get position between left edge of screen ..
         x1 = 0
-        x2 = int(pos1[0] / 2)
+        # .. and somewhere halfway to the ship
+        x2 = int(pos[0] / 2)
+        # if ship is too close to where the rock will launch, switch to other half
         if x1 >= x2 - rock_radius:
-            x2 = x1 + 2 * rock_radius
+            x1 = int((WIDTH + pos[0]) / 2)
+            x2 = WIDTH
     # else moving left ...
     else:
-        # get position in right section of the screen
-        x1 = int((pos1[0] + WIDTH) / 2)
+        # get position from midway between ship and right edge of the screen ..
+        x1 = int((pos[0] + WIDTH) / 2)
+        # .. to right edge of the screen
         x2 = WIDTH
+        # if the ship is too close to where rock may spawn, switch to other half
         if x1 >= x2 - rock_radius:
-            x1 = x2 - 2 * rock_radius
+            x1 = 0
+            x2 = int(pos[0] / 2)
     
     x_start = random.randrange(x1, x2)
     
@@ -362,34 +470,51 @@ def put_rock_on_horizontal_edge(dir_vect):
     if dir_vect[1] > 0:
         # start at top edge
         y_start = 0
+        # if ship too close to top edge, switch starting edge
+        if pos[1] < (limit * rock_radius):
+            y_start = HEIGHT
     # if moving up
     else:
         # start at bottom edge
         y_start = HEIGHT
+        # if ship too close to bottom edge, switch starting edge
+        if pos[1] < (limit * rock_radius):
+            y_start = HEIGHT
     
     return [x_start, y_start]
 
+#---------------------------------------------------------
 # helper: calculate rock_y
 def put_rock_on_vertical_edge(dir_vect):
+    # find rock size
     rock_radius = asteroid_info.get_radius()
-    
-    # where is ship
-    pos1 = my_ship.get_pos()
-    
-    # if moving to down (or not)
+    # where is ship at
+    pos = my_ship.get_pos()
+    # determine the unfairness of the spawn
+    if 4 > level:
+        limit = 5 - level
+    else:
+        limit = 2
+    # if not moving up
     if dir_vect[1] >= 0:
-        # get a position in top section of screen
+        # get a position between top edge of screen ..
         y1 = 0
-        y2 = int(pos1[1] / 2)
+        # .. and halfway to ship
+        y2 = int(pos[1] / 2)
+        # if ship too close to where rock may spawn, switch to other side
         if y1 >= y2 - rock_radius:
-            y2 = y1 + 2 * rock_radius
+            y1 = int(pos[1] / 2)
+            y2 = HEIGHT
     # else moving up ...
     else:
-        # get a position in bottom section of screen
-        y1 = int((pos1[1] + HEIGHT) / 2)
+        # get a position between bottom edge of screen ..
         y2 = HEIGHT
+        # .. and halfway to ship
+        y1 = int((HEIGHT + pos[1]) / 2)
+        # if ship too close to wher rock may spawn, switch to the other side
         if y1 >= y2 - rock_radius:
-            y1 = y2 - 2 * rock_radius
+            y1 = 0
+            y2 = int((HEIGHT + pos[1]) / 2)
     
     y_start = random.randrange(y1, y2)
     
@@ -397,25 +522,37 @@ def put_rock_on_vertical_edge(dir_vect):
     if dir_vect[0] > 0:
         # start on left edge
         x_start = 0
+        # if ship too close to leet edge, switch starting edge
+        if pos[0] < (limit * rock_radius):
+            x_start = WIDTH
     # else moving left
     else:
         # start on right edge
         x_start = WIDTH
+        # if ship too close to right edge, switch starting edge
+        if pos[0] > (WIDTH - (limit * rock_radius)):
+            x_start = 0
     
     return [x_start, y_start]
 
+#---------------------------------------------------------
 # helper: get random velocity in direction given
 def get_rock_velocity(dir_vect):
-    current_rock_speed = (score / MAX_ROCKS_ALLOWED) + 1
+    # level determine the ferociousness of the rocks
+    current_rock_speed = level
+    # but limit it to some semi-sane values
     if MAX_ROCK_SPEED < current_rock_speed:
         current_rock_speed = MAX_ROCK_SPEED
-    min_rock_speed = ((score / MAX_ROCKS_ALLOWED) / MAX_ROCKS_ALLOWED) + 1
+    # if it gets harder, no pulling punches ! rocks are FLYING everywhere
+    min_rock_speed = (level / MAX_ROCKS_ALLOWED) + 1
+    # if no range to select from, select hardest option in the world
     if current_rock_speed <= min_rock_speed:
         vel = current_rock_speed
+    # else pick from the range we calculated
     else:
         vel = random.randrange(1, 10 * current_rock_speed) / 10.0
+    # set the rock velocity, and return the vector to the caller
     init_vel = [vel * dir_vect[0], vel * dir_vect[1]]
-    
     return init_vel
 
 #=======================================================
@@ -426,66 +563,100 @@ def rock_spawner():
     global missile_speed
     global score
     
+    # can only create rocks if game is on
     if started:
+        # is there room for another rock on screen ?
         if len(rock_group) < MAX_ROCKS_ALLOWED:
+            # start rock travelling in a random direction
             dir_angle = math.pi * 2 * random.random()
+            # get a vector to calculate the speed and starting positions
             dir_vect = angle_to_vector(dir_angle)
+            # if travelling (mostly) horizontally, start on a vertical edge
             if dir_vect[0] >= dir_vect[1]:
                 rock_pos = put_rock_on_vertical_edge(dir_vect)
+            # travelling (mostly) vertically, start on a horizontal edge
             else:
                 rock_pos = put_rock_on_horizontal_edge(dir_vect)
-            
+            # calculate a rock velocity according to the current level
             rock_vel = get_rock_velocity(dir_vect)
+            # pick a random spin value
             rotation = random.random() * math.pi * 2 / FRAMES_PER_SEC
+            # higher levels create smaller rocks (is this harder or not ?)
+            if level > (MAX_ROCKS_ALLOWED * 2):
+                info = asteroid_info_tiny
+            elif level > MAX_ROCKS_ALLOWED:
+                info = asteroid_info_small
+            else:
+                info = asteroid_info
+            # create a rock from those properties
             rock = Sprite(rock_pos, 
                           rock_vel, 
                           dir_angle, 
                           rotation, 
                           asteroid_image, 
-                          asteroid_info
+                          info
                          )
+            # and put the rock into our rock set
             rock_group.add(rock)
 
+#---------------------------------------------------------
+# handler: key is down
 def key_pressed(key):
+    # left key starts turning ship left
     if key == simplegui.KEY_MAP['left']:
         my_ship.rotates(-ANGLE_STEPS)
+    # right key starts turning ship right
     if key == simplegui.KEY_MAP['right']:
         my_ship.rotates(ANGLE_STEPS)
+    # up key moves ship forward
     if key == simplegui.KEY_MAP['up']:
         my_ship.accelerates(ACCEL_STEPS)
+    # space key fires another missile
     if key == simplegui.KEY_MAP['space']:
         my_ship.shoot()
 
+#---------------------------------------------------------
+# handler: key is up
 def key_released(key):
+    # left key is not pressed, stop turning left
     if key == simplegui.KEY_MAP['left']:
-        my_ship.rotates(0)
+        my_ship.rotates(ANGLE_STEPS)
+    # right key is not pressed, stop turning right
     if key == simplegui.KEY_MAP['right']:
-        my_ship.rotates(0)
+        my_ship.rotates(-ANGLE_STEPS)
+    # up key is not pressed, we are not accelerating any more
     if key == simplegui.KEY_MAP['up']:
         my_ship.accelerates(0)
 
+#---------------------------------------------------------
+# handler: mouse clicked
 def click(pos):
+    # if not in game
     if not started:
+        # determine where the splash screen is
         splash_size = splash_info.get_size()
         splash_left = (WIDTH - splash_size[0]) / 2
         splash_right = (WIDTH + splash_size[0]) / 2
         splash_top = (HEIGHT - splash_size[1]) / 2
         splash_bottom = (HEIGHT + splash_size[1]) / 2
-        
+        # check if we clicked inside splash screen
         in_h = (pos[0] < splash_right) and (pos[0] > splash_left)
         in_v = (pos[1] < splash_bottom) and (pos[1] > splash_top)
-        
+        # if we clicked in splash screen, start a game
         if in_h and in_v:
             start_new_game()
     
+#---------------------------------------------------------
+# handler: draw routine
 def draw(canvas):
     global time
     global rock_group
     global missile_group
     global lives, lives_group
-    global score
-    global started
-    global rocks_rolling, missile_speed
+    global score, high_score
+    global level, level_up_score
+    global started, display_pos
+    global rocks_been_around, missile_speed
     global upgrade_score
     
     # animiate background
@@ -497,51 +668,72 @@ def draw(canvas):
     canvas.draw_image(debris_image, center, size, (wtime - WIDTH / 2, HEIGHT / 2), (WIDTH, HEIGHT))
     canvas.draw_image(debris_image, center, size, (wtime + WIDTH / 2, HEIGHT / 2), (WIDTH, HEIGHT))
 
-    # draw ship and sprites
+    # draw ship
     my_ship.draw(canvas)
-    # update ship and sprites
+    # update ship
     my_ship.update()
+    # draw and update rock sprites
     process_sprite_group(canvas, rock_group)
+    # draw and update missile sprites
     process_sprite_group(canvas, missile_group)
+    # draw and update explosion sprites
     process_sprite_group(canvas, explosion_group)
     
-    if not started:
+    # if in game ..
+    if started:
+        # if there have spawned any rocks, we are ready to level up
+        if len(rock_group) > 0:
+            rocks_been_around = True
+        # count the many rocks that collided with our missiles
+        score += group_group_collide(missile_group, rock_group)
+        if score > level_up_score:
+            add_level()
+            level_up_score += MAX_ROCKS_ALLOWED
+        if score > high_score:
+            high_score = score
+        # if all rocks already destroyed, appreciate bad-assness with level-up
+        if rocks_been_around and (len(rock_group) < 1):
+            rocks_been_around = False
+            add_live()
+            add_level()
+            level_up_score = score + MAX_ROCKS_ALLOWED
+        # if rocks bounced on ship ..
+        if group_collide(rock_group, my_ship):
+            # ship shows a bit of explosion
+            new_explosion(my_ship)
+            # lose a life
+            lives -= 1
+            lives_group.pop(-1)
+            # game over already ?
+            if 0 == lives:
+                # stop game
+                started = 0
+                display_pos = 0
+                # remove the rocks flying all over
+                copy_group = set(rock_group)
+                rock_group.symmetric_difference_update(copy_group)
+                # stop the music
+                soundtrack.pause()
+    # if not in game
+    else:
+        # show splash screen
         canvas.draw_image(splash_image,
                           splash_info.get_center(),
                           splash_info.get_size(),
                           [WIDTH / 2, HEIGHT / 2],
                           splash_info.get_size())
-    else:
-        score += group_group_collide(missile_group, rock_group)
-        if len(rock_group) > 0:
-            rocks_rolling = True
-        if rocks_rolling and (len(rock_group) < 1):
-            rocks_rolling = False
-            missile_speed -= 1
-            bonus = score / 12 * 12
-            if bonus < 24:
-                bonus = 24
-            score += bonus
-            add_live()
-            
-        if (score > upgrade_score):
-            add_live()
-            upgrade_score = 2 * upgrade_score
-            
-        if group_collide(rock_group, my_ship):
-            lives -= 1
-            lives_group.pop(-1)
-            if 0 == lives:
-                started = 0
-                copy_group = set(rock_group)
-                rock_group.symmetric_difference_update(copy_group)
-                soundtrack.pause()
-    
+        # show some instructions for play ...
+        show_instructions(canvas)
+        
+    # draw level group
+    if 0 < len(level_group):
+        process_sprite_group(canvas, level_group)
+        
     # draw user interface
     lives_string = "Lives: "
     canvas.draw_text(lives_string, ( 24, 24), 24, "Yellow")
     process_sprite_group(canvas, lives_group)
-    
+    # draw the score in the upper right corner
     value_string = str(score).rjust(5, '0')
     score_string = "Score: " + value_string
     score_x = WIDTH - 24 - frame.get_canvas_textwidth(score_string, 24)
@@ -552,12 +744,13 @@ def draw(canvas):
 # initialize frame
 frame = simplegui.create_frame("Asteroids", WIDTH, HEIGHT)
 
-# initialize ship and two sprites
+# initialize ship and sprite groups
 my_ship = Ship([WIDTH / 2, HEIGHT / 2], [0, 0], 0, ship_image, ship_info)
 rock_group = set([])
 missile_group = set([])
 explosion_group = set([])
 lives_group = []
+level_group = []
 
 # register handlers
 frame.set_draw_handler(draw)
