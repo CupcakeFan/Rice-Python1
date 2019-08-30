@@ -394,20 +394,23 @@ def new_explosion(sprite_info):
     explosion_group.add(expl)
     
 #---------------------------------------------------------
-# helper: detect collision between a group and an object
+# helper: detect first collision between a group and an object
 def group_collide(sprite_group, an_object):
     # make a copy we can iterate over
-    copy_group = set(sprite_group)
+    copy_group = sprite_group.copy()
     # initially we had no collisions
     collided = False
-    # check each sprite in the group
-    for sprite in copy_group:
+    # index to iterate with
+    sprite_index = 0
+    # check each sprite in the group until collision
+    while (0 < len(copy_group)) and not collided:
+        sprite = copy_group.pop()
         # collision with the object ?
         if sprite.collide(an_object):
             # collisions = explosions
             new_explosion(sprite)
             # and remove the sprite object from the original set
-            sprite_group.remove(sprite)
+            sprite_group.discard(sprite)
             # and we had at least one collision from the set
             collided = True
     # report to the caller if any of the set collided with the object
@@ -417,7 +420,7 @@ def group_collide(sprite_group, an_object):
 # helper: check if any of group1 collided with any of group2
 def group_group_collide(sprite_group1, sprite_group2):
     # make a copy of group1 so we can iterate over the non-mutating copy
-    copy_group1 = set(sprite_group1)
+    copy_group1 = sprite_group1.copy()
     # the number of collisions is none yet
     number_of_collides = 0
     # iterate over each item in set 1
@@ -685,7 +688,7 @@ def draw(canvas):
         if len(rock_group) > 0:
             rocks_been_around = True
         # count the many rocks that collided with our missiles
-        score += group_group_collide(missile_group, rock_group)
+        score += group_group_collide(rock_group, missile_group)
         if score > level_up_score:
             add_level()
             level_up_score += MAX_ROCKS_ALLOWED
