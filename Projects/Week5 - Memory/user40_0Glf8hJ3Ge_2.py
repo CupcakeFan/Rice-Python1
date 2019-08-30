@@ -11,11 +11,22 @@ CARDS_PER_ROW = 4 # number of cards to place in a row (make sure it is a factor 
 WIDTH = CARDS_PER_ROW * CARD_W # canvas width is number of cards per row
 HEIGHT = (TOTAL_CARDS / CARDS_PER_ROW) * CARD_H # canvas height is number of card rows
 
+PLAY_1 = ("0", "1", "2", "3", "4", "5", "6" ,"7")
+PLAY_2 = ("A", "B", "C", "D", "E", "F", "G", "H")
+PLAY_3 = ("!", "@", "#", "$", "%", "&", "*", "?")
+PLAY_4 = ("Z", "Y", "X", "W", "V", "U", "T", "S")
+PLAY_5 = (":)", ":|", ":(", ";(", ":s", "B)", "8o", ":p")
+PLAY_6 = ("  ", " .", "..", ".:", "::", " -", ".-", ":-")
+PLAY_7 = ("--", "-/", "//", "|/", "||", "\\|", "\\\\", "-\\")
+PLAY_8 = ("at", "be", "go", "hi", "in", "my", "no", "on")
+PLAYS = (PLAY_1, PLAY_2, PLAY_3, PLAY_4, PLAY_5, PLAY_6, PLAY_7, PLAY_8)
+
 # variables to keep card value and flips: total cards / 2 because it keeps pairs of values
 cards = list(range(TOTAL_CARDS / 2))
 cards.extend(range(TOTAL_CARDS / 2))
 index1 = len(cards) # point somewhere invalid initially
 index2 = len(cards) # point somewhere invalid initially
+play_set = 0
 
 # helper function to initialize globals
 def new_game():
@@ -23,8 +34,10 @@ def new_game():
     global exposed
     global state
     global turn_counter
+    global play_set
     
     state = 0
+    play_set = 0
     random.shuffle(cards)
     # make all the cards unflipped in this list
     exposed = [False for card in cards]
@@ -39,6 +52,7 @@ def mouseclick(pos):
     global index1
     global index2
     global turn_counter
+    global play_set
     
     # add game state logic here
     # calculate the index number from the mouse position
@@ -52,6 +66,7 @@ def mouseclick(pos):
         if 0 == state:
             # one card exposed after this click
             state = 1
+            play_set = cards[idx]
             # expose the selected card
             exposed[idx] = True
             # remember this card is exposed
@@ -99,11 +114,12 @@ def draw(canvas):
         y1 = (idx / CARDS_PER_ROW) * CARD_H
         x2 = x1 + (CARD_W - 1)
         y2 = y1 + CARD_H
+        xt = 20 - (play_set / 4 * 10)
         
         # if exposed, we draw the face and the edges
         if True == exposed[idx]:
             # show the face, which is just the number as a string
-            canvas.draw_text(str(cards[idx]), (20 + x1, y1 + 5 + CARD_H / 2), 24, "White")
+            canvas.draw_text(PLAYS[play_set][cards[idx]], (x1 + xt, y1 + 5 + CARD_H / 2), 24, "White")
             # frame the number showing the edge of the card
             canvas.draw_polyline([(x1, y1),(x2, y1),(x2, y2),(x1, y2),(x1, y1)],1,"White")
         # if hidden, we draw the card back
