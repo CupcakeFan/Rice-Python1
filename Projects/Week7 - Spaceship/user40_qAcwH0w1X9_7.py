@@ -347,11 +347,12 @@ def draw(canvas):
     a_missile.update()
     
     # draw user interface
-    score_string = "Score: " + str(score)
-    canvas.draw_text(score_string, ( 24, 24), 24, "Yellow")
     lives_string = "Lives: " + str(lives)
-    lives_x = WIDTH - 24 - frame.get_canvas_textwidth(lives_string, 24)
-    canvas.draw_text(lives_string, ( lives_x, 24), 24, "Yellow")
+    canvas.draw_text(lives_string, ( 24, 24), 24, "Yellow")
+    value_string = str(score).rjust(5, '0')
+    score_string = "Score: " + value_string
+    score_x = WIDTH - 24 - frame.get_canvas_textwidth(score_string, 24)
+    canvas.draw_text(score_string, ( score_x, 24), 24, "Yellow")
 
 #==========================================================
 # initialize frame
