@@ -22,7 +22,10 @@ BALL_MIN_X_SPEED = 120
 BALL_MAX_Y_SPEED = 180
 BALL_MIN_Y_SPEED = 60
 
-#default paddle speed: cover top-to-bottom move in the time ball moves between mid-line and gutter
+# scale factor for ball speed per second to ball speed per frame
+FRAMES_PER_SEC = 60
+
+# default paddle speed: cover top-to-bottom move in the time ball moves between mid-line and gutter
 PADDLE_SPEED = BALL_MAX_X_SPEED * (HEIGHT - PAD_HEIGHT) / (WIDTH / 2 - PAD_WIDTH - BALL_RADIUS)
 
 # ball directions
@@ -47,6 +50,7 @@ scoreL = 0
 # right player score
 scoreR = 0
 
+# fancy add-on features
 game_over = False
 score_timer = 0
 
@@ -87,35 +91,36 @@ R8 = ((RX, RY), (RX, RY + DH), (RX + DW, RY + DH), (RX + DW, RY - DH), (RX, RY -
 L9 = ((LX, LY + DH), (LX + DW, LY + DH), (LX + DW, LY - DH), (LX, LY - DH), (LX, LY), (LX + DW, LY))
 R9 = ((RX, RY + DH), (RX + DW, RY + DH), (RX + DW, RY - DH), (RX, RY - DH), (RX, RY), (RX + DW, RY))
 
+# List of digit polylines for each side
 LEFT_DIGITS = (L0, L1, L2, L3, L4, L5, L6, L7, L8, L9)
 RIGHT_DIGITS = (R0, R1, R2, R3, R4, R5, R6, R7, R8, R9)
 
 #================================================================================
 # bounce ball off paddle
 def reverse_ball_x_speed():
-    dx = ball_vel[0] / 60
+    dx_per_frame = ball_vel[0] / FRAMES_PER_SEC
     
 # move the ball back
-    ball_pos[0] = ball_pos[0] - dx
+    ball_pos[0] = ball_pos[0] - dx_per_frame
     
 # reverse the velocity
     ball_vel[0] = -ball_vel[0]
     
 # increase the velocity by 10%
     ball_vel[0] = (ball_vel[0] * 110) / 100
-    dx = ball_vel[0] / 60
+    dx_per_frame = ball_vel[0] / FRAMES_PER_SEC
     
 # move the ball in the new direction
-    ball_pos[0] = ball_pos[0] + dx
+    ball_pos[0] = ball_pos[0] + dx_per_frame
 
 #================================================================================
 # move ball in x direction
 def move_ball_horizontal():
 # scale horizontal velocity for 60fps update rate
-    dx = ball_vel[0] / 60
+    dx_per_frame = ball_vel[0] / FRAMES_PER_SEC
     
 # update ball horizontal position with scaled horizontal velocity
-    ball_pos[0] = ball_pos[0] + dx
+    ball_pos[0] = ball_pos[0] + dx_per_frame
 
 #================================================================================
 def check_ball_horizontal_hits():
@@ -150,23 +155,23 @@ def check_ball_horizontal_hits():
 # move the ball in the y direction
 def move_ball_vertical():
 # scale vertical velocity for 60fps update rate
-    dy = ball_vel[1] / 60
+    dy_per_frame = ball_vel[1] / FRAMES_PER_SEC
     
 # update the vertical position with the scaled vertical velocity
-    ball_pos[1] = ball_pos[1] + dy
+    ball_pos[1] = ball_pos[1] + dy_per_frame
     
 # If ball edge moves off the playfield, 
     if (ball_pos[1] < BALL_RADIUS) or (ball_pos[1] > (HEIGHT - BALL_RADIUS)):
         
 # move it back
-        ball_pos[1] = ball_pos[1] - dy
+        ball_pos[1] = ball_pos[1] - dy_per_frame
     
 # reverse the velocity
         ball_vel[1] = -ball_vel[1]
-        dy = ball_vel[1] / 60
+        dy_per_frame = ball_vel[1] / FRAMES_PER_SEC
         
 # move in the new direction instead
-        ball_pos[1] = ball_pos[1] + dy
+        ball_pos[1] = ball_pos[1] + dy_per_frame
     
 #================================================================================
 # adjust paddle y position by paddle speed in y direction
@@ -225,14 +230,15 @@ def spawn_ball(direction):
     ball_pos = [WIDTH / 2, ball_y]
     
 # set the horizontal speedvector in the range 120-240 pixels/second to start with
-    dx = random.randrange(BALL_MIN_X_SPEED, BALL_MAX_X_SPEED + 1)
+    x_per_sec = random.randrange(BALL_MIN_X_SPEED, BALL_MAX_X_SPEED + 1)
     if direction == LEFT:
-        dx = -dx
+        x_per_sec = -x_per_sec
     
 # set the vertical speedvector in the range 60-180 pixels/second to start with
-    dy = random.randrange(BALL_MIN_Y_SPEED, BALL_MAX_Y_SPEED + 1)
+    y_per_sec = random.randrange(BALL_MIN_Y_SPEED, BALL_MAX_Y_SPEED + 1)
     
-    ball_vel = [dx, -dy]
+# y_per_sec negative value to start upward
+    ball_vel = [x_per_sec, -y_per_sec]
     
 #================================================================================
 # define event handlers
@@ -251,6 +257,7 @@ def new_game():
     
     game_over = False
     
+# pick a random direction for the first spawm (rest spawn towards winner)
     if random.randrange(0, 10) < 5:
         spawn_ball(LEFT)
     else:
@@ -298,15 +305,15 @@ def draw(canvas):
 # at winning score
     if scoreL == WIN_SCORE:
 
-        # make paddle bounce up and down, while flashing winning score. because it looks cool !
+# make paddle bounce up and down, while flashing winning score. because it looks cool !
         if score_timer < 60:
 # in first second counts, calculate Y position going from bottom to top
             paddleY = (60 - score_timer) * (HEIGHT - 1 - PAD_HEIGHT) / 60
         else:
-# flash winning score by showing it every other second 
-            canvas.draw_polyline(LEFT_DIGITS[scoreL], HALF_PAD_WIDTH, "white")
 # in second second counts, calculate Y position going from top to bottom
             paddleY = (score_timer - 60) * (HEIGHT - 1 - PAD_HEIGHT) / 60
+# flash winning score by showing it every other second 
+            canvas.draw_polyline(LEFT_DIGITS[scoreL], HALF_PAD_WIDTH, "white")
 
 # put paddle at bouncy position for next draw
         paddleL_pos = [WIDTH - PAD_WIDTH - 1, HALF_PAD_HEIGHT + paddleY]
@@ -324,10 +331,10 @@ def draw(canvas):
 # in first second counts, calculate Y position going from bottom to top
             paddleY = (60 - score_timer) * (HEIGHT - 1 - PAD_HEIGHT) / 60
         else:
-# flash winning score by showing it every other second 
-            canvas.draw_polyline(RIGHT_DIGITS[scoreR], HALF_PAD_WIDTH, "white")
 # in second second counts, calculate Y position going from top to bottom
             paddleY = (score_timer - 60) * (HEIGHT - 1 - PAD_HEIGHT) / 60
+# flash winning score by showing it every other second 
+            canvas.draw_polyline(RIGHT_DIGITS[scoreR], HALF_PAD_WIDTH, "white")
 
 # put paddle at bouncy position for next draw
         paddleR_pos = [WIDTH - PAD_WIDTH - 1, HALF_PAD_HEIGHT + paddleY]
