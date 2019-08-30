@@ -53,17 +53,17 @@ score_timer = 0
 # first to WIN_SCORE wins
 WIN_SCORE = 9
 
-# left score position
-LX = WIDTH / 4
-LY = HEIGHT / 5
-
-# right score position
-RX = 3 * WIDTH / 4
-RY = HEIGHT / 5
-
 # digit dimenstion
 DW = WIDTH / 16
 DH = HEIGHT / 10
+
+# left score position
+LX = WIDTH / 4 - DW / 2
+LY = HEIGHT / 5
+
+# right score position
+RX = 3 * WIDTH / 4 - DW / 2
+RY = HEIGHT / 5
 
 # digit polylines
 L0 = ((LX, LY - DH), (LX, LY + DH), (LX + DW, LY + DH), (LX + DW, LY - DH), (LX, LY - DH))
@@ -111,8 +111,6 @@ def reverse_ball_x_speed():
 #================================================================================
 # move ball in x direction
 def move_ball_horizontal():
-    global ball_pos, ball_vel, scoreR, scoreL
-    
 # scale horizontal velocity for 60fps update rate
     dx = ball_vel[0] / 60
     
@@ -151,8 +149,6 @@ def check_ball_horizontal_hits():
 #================================================================================
 # move the ball in the y direction
 def move_ball_vertical():
-    global ball_pos, ball_vel
-    
 # scale vertical velocity for 60fps update rate
     dy = ball_vel[1] / 60
     
@@ -175,7 +171,6 @@ def move_ball_vertical():
 #================================================================================
 # adjust paddle y position by paddle speed in y direction
 def move_paddle_position(paddle_pos, paddle_vel):
-    
 # move paddle centre
     paddle_pos[1] = paddle_pos[1] + paddle_vel[1]
     
@@ -190,7 +185,6 @@ def move_paddle_position(paddle_pos, paddle_vel):
 
 #================================================================================
 def ball_collides_with_paddle(paddle_pos):
-
 # if ball centre is lower than paddle centre
     if ball_pos[1] >= paddle_pos[1]:
         dy = ball_pos[1] - paddle_pos[1]
@@ -225,23 +219,20 @@ def spawn_ball(direction):
     global ball_pos, ball_vel # these are vectors stored as lists
     
 # pick a random position on midline from center half of playfield width
-    ball_pos[1] = random.randrange(HEIGHT / 4, HEIGHT * 3 / 4)
+    ball_y = random.randrange(HEIGHT / 4, HEIGHT * 3 / 4)
     
 # set start position on midline horizontally
-    ball_pos[0] = WIDTH / 2
+    ball_pos = [WIDTH / 2, ball_y]
     
 # set the horizontal speedvector in the range 120-240 pixels/second to start with
     dx = random.randrange(BALL_MIN_X_SPEED, BALL_MAX_X_SPEED + 1)
-    
     if direction == LEFT:
-        ball_vel[0] = -dx
-    else:
-        ball_vel[0] = dx
+        dx = -dx
     
 # set the vertical speedvector in the range 60-180 pixels/second to start with
     dy = random.randrange(BALL_MIN_Y_SPEED, BALL_MAX_Y_SPEED + 1)
     
-    ball_vel[1] = -dy
+    ball_vel = [dx, -dy]
     
 #================================================================================
 # define event handlers
@@ -267,8 +258,8 @@ def new_game():
 
 #================================================================================
 def draw(canvas):
-    global scoreL, scoreR, score_timer
-    global paddleL_pos, paddleR_pos, ball_pos, ball_vel
+    global score_timer
+    global paddleL_pos, paddleR_pos
     
 # draw mid line and gutters
     canvas.draw_line([WIDTH / 2, 0],[WIDTH / 2, HEIGHT], 1, "Silver")
@@ -352,12 +343,9 @@ def draw(canvas):
         score_timer = score_timer - 1
     else:
         score_timer = 120
-    
 
 #================================================================================
 def keydown(key):
-    global paddleL_vel, paddleR_vel
-    
     if key == simplegui.KEY_MAP["w"]:
         paddleL_vel[1] = -PADDLE_SPEED / 60
     if key == simplegui.KEY_MAP["s"]:
@@ -369,8 +357,6 @@ def keydown(key):
    
 #================================================================================
 def keyup(key):
-    global paddleL_vel, paddleR_vel
-
     if key == simplegui.KEY_MAP["w"]:
         paddleL_vel[1] = 0
     if key == simplegui.KEY_MAP["s"]:
