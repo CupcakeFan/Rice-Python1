@@ -33,6 +33,7 @@ DRAW_DEALER = (TABLE_WIDTH / 20, TABLE_HEIGHT * 2 / 12)
 DRAW_OUTCOME = (TABLE_WIDTH / 20, TABLE_HEIGHT * 6 / 12)
 DRAW_SCORE = (TABLE_WIDTH - DRAW_OUTCOME[0], TABLE_HEIGHT / 12)
 DRAW_PLAYER = (TABLE_WIDTH / 20, TABLE_HEIGHT * 8 / 12)
+DRAW_MESSAGE = (TABLE_WIDTH / 20, TABLE_HEIGHT * 11 /12)
 
 # Constants for easy game adjustment
 SCORE_SIZE = 24
@@ -54,6 +55,7 @@ DECK_LOW_LIMIT = 17 # deck lower than this, get a new one to make sure we can se
 in_play = False
 outcome = ""
 score = 0
+player_message = "Hit or Stand ?"
 dealer_play = False
 
 # slow down the auto-play action
@@ -260,7 +262,8 @@ class Deck:
 #====================================================
 #define event handlers for buttons
 def deal():
-    global outcome, score, in_play, hide_dealer, dealer_play_time
+    global outcome, player_message, score
+    global in_play, hide_dealer, dealer_play_time
     global player_hand, dealer_hand, deck
     
     # dealing on an in_play player_hand loses player a point
@@ -275,16 +278,16 @@ def deal():
     card = deck.deal_card()
     card.flip()
     player_hand.add_card(card)
-    # 2. deal a card to dealer, but do not flip first card
-    dealer_hand.add_card(deck.deal_card())
+    # 2. deal a flipped card to dealer
+    card = deck.deal_card()
+    card.flip()
+    dealer_hand.add_card(card)
     # 3. deal a flipped card to player
     card = deck.deal_card()
     card.flip()
     player_hand.add_card(card)
-    # 4. deal a flipped card to dealer
-    card = deck.deal_card()
-    card.flip()
-    dealer_hand.add_card(card)
+    # 4. deal a card to dealer, but do not flip this card
+    dealer_hand.add_card(deck.deal_card())
     
     #DEBUG
     if DEBUG:
@@ -300,10 +303,12 @@ def deal():
     
     # outcome is an invite
     outcome = "Let's Play !"
+    player_message = "Hit or Stand ?"
 
 def hit():
-    global score, in_play, outcome
-    global player_hand
+    global score, in_play
+    global outcome, player_message
+    global player_hand, dealer_hand
     
     # if the hand is in play, hit the player with a face-up card
     if in_play:
@@ -314,19 +319,24 @@ def hit():
         # outcome is a reminder message
         #outcome = "You got " + str(player_hand.get_value())
         outcome = "Dealer draws to " + str(DEALER_DRAWS_TO) + "..."
+        
+        # Show hand value
+        if DEBUG:
+            print "Player", player_hand
+    else:
+        player_message = "No game on table. New Deal ?"
     
     # if busted, assign a message to outcome, update in_play and score
     if in_play and (player_hand.get_value() > 21):
         in_play = False
         score -= 1
         outcome = "You busted !!"
-    
-    # Show hand value
-    if DEBUG:
-        print "Player", player_hand
+        player_message = "New Deal ?"
+        dealer_hand.show()
 
 def stand():
-    global dealer_play, outcome, dealer_play_time
+    global dealer_play, dealer_play_time
+    global outcome, player_message
     
     # if still in play, we can opt to stand
     if in_play:
@@ -338,6 +348,7 @@ def stand():
         outcome = "Dealer draws to " + str(DEALER_DRAWS_TO) + "..."
         # enable dealer to be hit
         dealer_play = True
+        player_message = ""
         
         # Show hand value
         if DEBUG:
@@ -347,18 +358,16 @@ def stand():
 # helper function - hit dealer and check game state
 def dealer_draws():
     global dealer_hand
-    global score, outcome, in_play
+    global score, outcome, player_message, in_play
     
     # assign player hand value for easy comparing
     p_value = player_hand.get_value()
     
     # should dealer take a card ?
     if dealer_hand.get_value() < DEALER_DRAWS_TO:
-        # if not winning yet, draw a card face-up
-        if dealer_hand.get_value() < p_value:
-            card = deck.deal_card()
-            card.flip()
-            dealer_hand.add_card(card)
+        card = deck.deal_card()
+        card.flip()
+        dealer_hand.add_card(card)
     
     # show me what is happening
     if DEBUG:
@@ -372,6 +381,7 @@ def dealer_draws():
     if d_value >= DEALER_DRAWS_TO:
         # Stop further play
         in_play = False
+        player_message = "New Deal ?"
         # Dealer loses to player ?
         if d_value < p_value:
             score += 1
@@ -430,6 +440,9 @@ def draw(canvas):
     score_width = frame.get_canvas_textwidth(score_string, SCORE_SIZE)
     score_pos = (DRAW_SCORE[0] - score_width, DRAW_SCORE[1])
     canvas.draw_text(score_string, score_pos, SCORE_SIZE, "White")
+    
+    # Display player_message at bottom
+    canvas.draw_text(player_message, DRAW_MESSAGE, OUTCOME_SIZE, "White")
 
 #==================================================
 # initialization frame
